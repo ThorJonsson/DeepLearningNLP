@@ -1,10 +1,10 @@
 require 'paths'
 require 'rnn'
 local dl = require 'dataload'
-local loadAlthingi = require 'loadAlthingi.lua'
+local txt_load = require 'txt_load.lua'
 
 local train = require 'train.lua'
-version = 2
+version = 3
 
 --[[ command line arguments ]]--
 cmd = torch.CmdLine()
@@ -65,7 +65,7 @@ train_on_char = true -- if false it trains on words
 bidirectional = true -- if false it is unidirectional
 -- This is where the magic happens:
 -- input: train_on_char (boolean), bidirectional (boolean), bat
-local trainset, validset, testset = loadAlthingi(train_on_char,bidirectional,{opt.batchsize,1,1})
+local trainset, validset, testset = txt_load.Althingi(train_on_char,bidirectional,{opt.batchsize,1,1})
 print("Char Vocabulary size : "..#trainset.icharvocab) 
 local char_vocabsize = #trainset.icharvocab
 print("Word Vocabulary size : "..#trainset.iwordvocab) 

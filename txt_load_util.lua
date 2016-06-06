@@ -1,12 +1,14 @@
 -- Thor Jonsson 26/05'16
 -- Collection of functions to build a 
+local dl = require 'dataload'
 local txt_load_util = {}
 -- text utility functions
 
-function txt_load_util.buildVocab(tokens, ischartokens, minfreq)
+function txt_load_util.buildVocab(tokens)
+    local ischartokens = true -- For now we only work with characters
     assert(torch.type(tokens) == 'table', 'Expecting table')
     assert(torch.type(tokens[1]) == 'string', 'Expecting table of strings')
-    minfreq = minfreq or -1
+    minfreq = -1
     assert(torch.type(minfreq) == 'number')
     local wordfreq = {}
 
@@ -72,4 +74,4 @@ function txt_load_util.text2tensor(tokens, vocab)
     return tensor
 end
 
-return text_load_util
+return txt_load_util
