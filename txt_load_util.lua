@@ -9,49 +9,40 @@ function txt_load_util.buildVocab(tokens)
     assert(torch.type(tokens) == 'table', 'Expecting table')
     assert(torch.type(tokens[1]) == 'string', 'Expecting table of strings')
     minfreq = -1
-    assert(torch.type(minfreq) == 'number')
-    local wordfreq = {}
+    local charfreq = {}
 
     -- Build a table containing each token and the respective frequency in data
+    -- Note that we have already tokenized at this stage, so each element
+    -- of the tokens contains an icelandic utf8-coded character
     for i=1,#tokens do
-        local word = tokens[i]
-        wordfreq[word] = (wordfreq[word] or 0) + 1
+        local char = tokens[i]
+        charfreq[char] = (charfreq[char] or 0) + 1
     end
 
     local vocab, ivocab = {}, {}
-    local wordseq = 0
+    local charseq = 0
     
     local _ = require 'moses'
     -- make sure ordering is consistent
-    local words = _.sort(_.keys(wordfreq))
+    local chars = _.sort(_.keys(charfreq))
     -- Get UTF8 support to determine length of words
-    local utf8 = require 'lua-utf8'
-    local maxwordlen = 0
     local oov = 0
-    for i, word in ipairs(words) do
-        local freq = wordfreq[word]
-        if freq >= minfreq then
-            if not ischartokens and utf8.len(word) > maxwordlen then
-                maxwordlen = utf8.len(word)
-            end
-            wordseq = wordseq + 1
-            vocab[word] = wordseq
-            ivocab[wordseq] = word
-        else
+    -- Count order of vocabulary
+    for i, char in ipairs(chars) do
+        local freq = charfreq[char]
+            -- oov = order of vocabulary
             oov = oov + freq
-        end
     end
 
+    -- If the vocabulary is not empty
     if oov > 0 then
-        wordseq = wordfreq + 1
-        wordfreq['<OOV>'] = oov
-        vocab['<OOV>'] = wordseq
-        ivocab[wordseq] = '<OOV>'
+        charseq = charfreq + 1
+        charfreq['<OOV>'] = oov
+        vocab['<OOV>'] = charseq
+        ivocab[charseq] = '<OOV>'
     end
     if ischartokens then
-        return vocab, ivocab, wordfreq
-    else
-        return vocab, ivocab, wordfreq, maxwordlen
+        return vocab, ivocab, charfreq
     end
 end
 
