@@ -28,6 +28,7 @@ function txt_load.Althingi(train_on_char,is_bidirectional,batchsize)
     local stringx = require('pl.stringx')
 
     local loaders = {}
+    -- There are three different datafiles in dir
     for i,whichset in ipairs{'train', 'valid', 'test'} do
         -- download the file if necessary
         local filename = 'althingi.'..whichset..'.txt'

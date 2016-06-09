@@ -34,16 +34,7 @@ function txt_load_util.buildVocab(tokens)
             oov = oov + freq
     end
 
-    -- If the vocabulary is not empty
-    if oov > 0 then
-        charseq = charfreq + 1
-        charfreq['<OOV>'] = oov
-        vocab['<OOV>'] = charseq
-        ivocab[charseq] = '<OOV>'
-    end
-    if ischartokens then
-        return vocab, ivocab, charfreq
-    end
+        return vocab, ivocab
 end
 
 function txt_load_util.text2tensor(tokens, vocab)
