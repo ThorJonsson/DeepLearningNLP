@@ -23,7 +23,6 @@ cmd:option('--schedule', '', 'learning rate schedule. e.g. {[5] = 0.004, [6] = 0
 cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--maxnormout', -1, 'max l2-norm of each layer\'s output neuron weights')
 cmd:option('--cutoff', -1, 'max l2-norm of concatenation of all gradParam tensors')
-cmd:option('--batchSize', 32, 'number of examples per batch')
 cmd:option('--cuda', false, 'use CUDA')
 cmd:option('--device', 1, 'sets the device (GPU) to use')
 cmd:option('--maxepoch', 1000, 'maximum number of epochs to run')
@@ -32,8 +31,8 @@ cmd:option('--progress', true, 'print progress bar')
 cmd:option('--silent', false, 'don\'t print anything to stdout')
 cmd:option('--uniform', 0.1, 'initialize parameters using uniform distribution between -uniform and uniform. -1 means default initialization')
 -- rnn layer 
-cmd:option('--lstm', true, 'use Long Short Term Memory (nn.LSTM instead of nn.Recurrent)')
-cmd:option('--blstm', false, 'use Long Short Term Memory (nn.LSTM instead of nn.Recurrent)')
+cmd:option('--lstm', false, 'use Long Short Term Memory (nn.LSTM instead of nn.Recurrent)')
+cmd:option('--blstm', true, 'use Long Short Term Memory (nn.LSTM instead of nn.Recurrent)')
 cmd:option('--gru', false, 'use Gated Recurrent Units (nn.GRU instead of nn.Recurrent)')
 cmd:option('--seqlen', 65, 'sequence length : back-propagate through time (BPTT) for this many time-steps')
 cmd:option('--hiddensize', '{200}', 'number of hidden units used at output of each recurrent layer. When more than one is specified, RNN/LSTMs/GRUs are stacked')
@@ -52,7 +51,7 @@ opt.schedule = loadstring(" return "..opt.schedule)()
 if not opt.silent then
    table.print(opt)
 end
-opt.id = opt.id == '' and ('ptb' .. ':' .. dl.uniqueid()) or opt.id
+opt.id = opt.id == '' and ('althingi' .. ':' .. dl.uniqueid()) or opt.id
 
 if opt.cuda then
    require 'cunn'
@@ -85,7 +84,6 @@ local lm = nn.Sequential()
 -- rnn layers
 local stepmodule = nn.Sequential() -- applied at each time-step
 local inputsize = opt.hiddensize[1]
-local bwd
 for i,hiddensize in ipairs(opt.hiddensize) do 
     local rnn
 
@@ -95,39 +93,32 @@ for i,hiddensize in ipairs(opt.hiddensize) do
         require 'nngraph'
         nn.FastLSTM.usenngraph = true -- faster
         rnn = nn.FastLSTM(inputsize, hiddensize)
-    elseif opt.blstm then 
-        rnn = nn.LSTM(inputsize, hiddensize)
-    else -- simple recurrent neural network
-        local rm =  nn.Sequential() -- input is {x[t], h[t-1]}
-        :add(nn.ParallelTable()
-        :add(i==1 and nn.Identity() or nn.Linear(inputsize, hiddensize)) -- input layer
-        :add(nn.Linear(hiddensize, hiddensize))) -- recurrent layer
-        :add(nn.CAddTable()) -- merge
-        :add(nn.Sigmoid()) -- transfer
-        rnn = nn.Recurrence(rm, hiddensize, 1)
-    end
-    
-    stepmodule:add(rnn)
-
-    if opt.dropout > 0 then
+    	stepmodule:add(rnn)
         stepmodule:add(nn.Dropout(opt.dropout))
-    end
-
+    elseif opt.blstm then 
+        rnn = nn.Sequencer(nn.FastLSTM(inputsize, hiddensize))--
+	   	lm:add(rnn)
+        lm:add(nn.Sequencer(nn.Dropout(opt.dropout)))
+	end 
     inputsize = hiddensize
 end
 
 if opt.blstm then   
-    bwd = stepmodule:clone()
+	local bwd = lm:clone()
     bwd:reset()
     bwd:remember('neither')
-    local bwd_lstm = nn.BiSequencerLM(stepmodule, bwd)
+    local bwd_lstm = nn.BiSequencerLM(lm, bwd)
 
-    stepmodule = nn.Sequential()
-    stepmodule:add(bwd_lstm)
+    lm = nn.Sequential()
+    lm:add(bwd_lstm)
     inputsize = inputsize*2
 end
 
-lm:insert(nn.SplitTable(1),1) -- tensor to table of tensors
+if opt.blstm then
+	lm:insert(nn.SplitTable(1),1) -- tensor to table of tensors TODO WHY???
+else
+	lm:insert(nn.SplitTable(1),1)
+end
 if opt.dropout > 0 and not opt.gru then  -- gru has a dropout option
    lm:insert(nn.Dropout(opt.dropout),1)
 end
@@ -137,11 +128,11 @@ lookup.maxnormout = -1 -- prevent weird maxnormout behaviour
 lm:insert(lookup,1) -- input is seqlen x batchsize
 
 -- output layer
-stepmodule:add(nn.Linear(inputsize, #trainset.icharvocab))
-stepmodule:add(nn.LogSoftMax())
-
+softmax = nn.Sequential()
+softmax:add(nn.Linear(inputsize, #trainset.icharvocab))
+softmax:add(nn.LogSoftMax())
 -- encapsulate stepmodule into a Sequencer
-lm:add(nn.Sequencer(stepmodule))
+lm:add(nn.Sequencer(softmax))
 
 -- remember previous state between batches
 lm:remember((opt.lstm or opt.gru) and 'both' or 'eval')
