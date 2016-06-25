@@ -38,9 +38,9 @@ cmd:option('--seqlen', 100, 'sequence length : back-propagate through time (BPTT
 cmd:option('--hiddensize', '{200}', 'number of hidden units used at output of each recurrent layer. When more than one is specified, RNN/LSTMs/GRUs are stacked')
 cmd:option('--dropout', 0.5, 'apply dropout with this probability after each rnn layer. dropout <= 0 disables it.')
 -- data
-cmd:option('--batchsize', 120, 'number of examples per batch')
-cmd:option('--trainsize', 2^10, 'number of train examples seen between each epoch')
-cmd:option('--validsize', 2^9, 'number of valid examples used for early stopping and cross-validation') 
+cmd:option('--batchsize', 2^8, 'number of examples per batch')
+cmd:option('--trainsize', 2*32768, 'number of train examples seen between each epoch')
+cmd:option('--validsize', 2*16384, 'number of valid examples used for early stopping and cross-validation') 
 cmd:option('--savepath', './char_results', 'path to directory where experiment log (includes model) will be saved')
 cmd:option('--id', 'althingi_blstm_seqlen100hiddensize1x200trainsize2to16', 'id string of this experiment (used to name output file) (defaults to a unique id)')
 
