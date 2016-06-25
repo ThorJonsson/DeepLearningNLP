@@ -4,11 +4,11 @@
 
 
 -- Loads the checkpoint
---function load()
---    model = xp:model()
---    print(torch.type(model))
+function load()
+    model = xp:model()
+    print(torch.type(model))
   
---end
+end
 
 -- Asks user to give input to seed
 --function ask4input()
