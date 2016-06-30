@@ -1,18 +1,20 @@
 -- Thor Jonsson
 -- This program provides a table of functions to sample an NLP neural network
 
-local sampler = {}
+local sampler = {althingismadur = nil}
 
 function sampler.load()
 	dl = require 'dataload/'
 	rnn = require 'rnn'
 	local path = './char_results/'
 	local t7file = 'althingi_blstm_seqlen100hiddensize1x200trainsize2to16.t7'
-    local althingismadur = torch.load(path..t7file)
-	return althingismadur
+    self.althingismadur = torch.load(path..t7file)
 end
 
+function 
+
 return sampler
+
 
 
 

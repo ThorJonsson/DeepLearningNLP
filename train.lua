@@ -67,7 +67,7 @@ function train.run(xplog)
        -- subiter takes in two arguments, i.e. batchsize and epochsize
        -- inputs : seqlen x batchsize [x inputsize] TODO I get batchsize x seqlen
        -- targets : seqlen x batchsize [x inputsize] 64 x 32 x 15 
-       for i, inputs, targets in trainset:subiter(opt.seqlen, opt.trainsize) do --TODO opt.seqlen instead for batchsize????
+       for i, inputs, targets in trainset:subiter(opt.batchsize, opt.trainsize) do
            -- forward the target through criterion
            -- Double cast is needed because of convolution
        

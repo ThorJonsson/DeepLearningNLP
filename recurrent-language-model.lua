@@ -1,53 +1,16 @@
+-- package for aquiring directory paths amongst other things...
 require 'paths'
+-- recurrent neural network library
 require 'rnn'
+-- library for dataloaders
 local dl = require 'dataload'
+-- The txt load module 
 local txt_load = require 'txt_load.lua'
 
 local train = require 'train.lua'
-version = 3
 
---[[ command line arguments ]]--
-cmd = torch.CmdLine()
-cmd:text()
-cmd:text('Train a Language Model on PennTreeBank dataset using RNN or LSTM or GRU')
-cmd:text('Example:')
-cmd:text('th recurrent-language-model.lua --cuda --device 2 --progress --cutoff 4 --seqlen 10')
-cmd:text("th recurrent-language-model.lua --progress --cuda --lstm --seqlen 20 --hiddensize '{200,200}' --batchsize 20 --startlr 1 --cutoff 5 --maxepoch 13 --schedule '{[5]=0.5,[6]=0.25,[7]=0.125,[8]=0.0625,[9]=0.03125,[10]=0.015625,[11]=0.0078125,[12]=0.00390625}'")
-cmd:text("th recurrent-language-model.lua --progress --cuda --lstm --seqlen 35 --uniform 0.04 --hiddensize '{1500,1500}' --batchsize 20 --startlr 1 --cutoff 10 --maxepoch 50 --schedule '{[15]=0.87,[16]=0.76,[17]=0.66,[18]=0.54,[19]=0.43,[20]=0.32,[21]=0.21,[22]=0.10}' -dropout 0.65")
-cmd:text('Options:')
--- training
-cmd:option('--startlr', 0.05, 'learning rate at t=0')
-cmd:option('--minlr', 0.00001, 'minimum learning rate')
-cmd:option('--saturate', 400, 'epoch at which linear decayed LR will reach minlr')
-cmd:option('--schedule', '', 'learning rate schedule. e.g. {[5] = 0.004, [6] = 0.001}')
-cmd:option('--momentum', 0.9, 'momentum')
-cmd:option('--maxnormout', -1, 'max l2-norm of each layer\'s output neuron weights')
-cmd:option('--cutoff', -1, 'max l2-norm of concatenation of all gradParam tensors')
-cmd:option('--cuda', false, 'use CUDA')
-cmd:option('--device', 1, 'sets the device (GPU) to use')
-cmd:option('--maxepoch', 1000, 'maximum number of epochs to run')
-cmd:option('--earlystop', 50, 'maximum number of epochs to wait to find a better local minima for early-stopping')
-cmd:option('--progress', true, 'print progress bar')
-cmd:option('--silent', false, 'don\'t print anything to stdout')
-cmd:option('--uniform', 0.1, 'initialize parameters using uniform distribution between -uniform and uniform. -1 means default initialization')
--- rnn layer 
-cmd:option('--lstm', false, 'use Long Short Term Memory (nn.LSTM instead of nn.Recurrent)')
-cmd:option('--blstm', true, 'use Long Short Term Memory (nn.LSTM instead of nn.Recurrent)')
-cmd:option('--gru', false, 'use Gated Recurrent Units (nn.GRU instead of nn.Recurrent)')
-cmd:option('--seqlen', 100, 'sequence length : back-propagate through time (BPTT) for this many time-steps')
-cmd:option('--hiddensize', '{200}', 'number of hidden units used at output of each recurrent layer. When more than one is specified, RNN/LSTMs/GRUs are stacked')
-cmd:option('--dropout', 0.5, 'apply dropout with this probability after each rnn layer. dropout <= 0 disables it.')
--- data
-cmd:option('--batchsize', 2^8, 'number of examples per batch')
-cmd:option('--trainsize', 2*32768, 'number of train examples seen between each epoch')
-cmd:option('--validsize', 2*16384, 'number of valid examples used for early stopping and cross-validation') 
-cmd:option('--savepath', './char_results', 'path to directory where experiment log (includes model) will be saved')
-cmd:option('--id', 'althingi_blstm_seqlen100hiddensize1x200trainsize2to16', 'id string of this experiment (used to name output file) (defaults to a unique id)')
+local opt = require 'options.lua'
 
-cmd:text()
-local opt = cmd:parse(arg or {})
-opt.hiddensize = loadstring(" return "..opt.hiddensize)()
-opt.schedule = loadstring(" return "..opt.schedule)()
 if not opt.silent then
    table.print(opt)
 end
@@ -60,12 +23,11 @@ end
 
 --[[ data set ]]--
 
-train_on_char = true -- if false it trains on words
 bidirectional = true -- if false it is unidirectional
 -- This is where the magic happens:
 -- input: train_on_char (boolean), bidirectional (boolean), bat
 -- Returns the respective loaders 
-local trainset, validset, testset = txt_load.Althingi(train_on_char,bidirectional,{opt.batchsize,1,1})
+local trainset, validset, testset = txt_load.Althingi(bidirectional,{opt.batchsize,1,1})
 print("Char Vocabulary size : "..#trainset.icharvocab) 
 local char_vocabsize = #trainset.icharvocab
 print("Word Vocabulary size : "..#trainset.iwordvocab) 
