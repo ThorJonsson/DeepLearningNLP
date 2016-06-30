@@ -1,3 +1,5 @@
+dataload/
+rnn/
 *.t7
 Data/
 .*.sw*
