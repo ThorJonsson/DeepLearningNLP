@@ -1,3 +1,4 @@
 *.t7
 Data/
-*.sw*
+.*.sw*
+options.lua
