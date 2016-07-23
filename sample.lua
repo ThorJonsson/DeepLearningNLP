@@ -11,7 +11,6 @@ function sampler.load()
     self.althingismadur = torch.load(path..t7file)
 end
 
-function 
 
 return sampler
 

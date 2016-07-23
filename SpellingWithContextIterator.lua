@@ -40,20 +40,45 @@
 -- Suppose text is all our testdata
 local txt_load_util = require 'txt_load_util.lua'
 local text = txt_load_util.getAlthingi('test')
-
+local utf8 = require 'lua-utf8'
 -- We add this function to txt_load_util
-function string:split(inSplitPattern, outResults)
-    if not outResults then
-        outResults = {}
+function string:split(scale) -- scale: char, word, snt, blob (TBI),txt
+    local N = utf8.len(self)
+    local token -- token depends on the scale
+    local split_start = 1
+    -- How we choose splitend depends on the scale
+    -- If scale is char then it's the next char position
+    -- If scale is word then it's the position as determined by find with token = ' '
+    -- If scale is snt then it's the position as determined by snt with token = '<eos>'
+    -- If scale is blob then it's the position as determined by some attention mechanism TBI
+    local split_end
+    local output = {}
+    if scale == 'char' then
+        for i=1,N do
+            output[i] = utf8.sub(self,split_start, split_start)
+            split_start = split_start + 1
+        end
+    else 
+
+        if scale == 'word' then
+            token = ' '
+        elseif scale == 'snt' then
+            token = '<eos>'
+        end
+        -- Problem: utf8.find returns nil if there's no remaining ' ' left.
+        -- Check if split_end = nil, if so grab set split_end = N
+        while split_start <= N do -- TODO use tokens to eliminate repeated spaces
+            _, split_end = utf8.find(self,token,split_start)
+            if split_end == nil then split_end = N end
+            local str = utf8.sub(self,split_start, split_end)
+            if str ~= token then 
+                table.insert(output, word)
+            end
+            split_start = split_end + 1
+        end
     end
-    local theStart = 1
-    local theSplitStart, theSplitEnd = string.find(self, inSplitPattern, theStart)
-    while theSplitStart do
-        table.insert(outResults, string.sub(self, theStart, theSplitStart-1))
-        theStart = theSplitEnd +1
-        theSplitStart, theSplitEnd = string.find(self, inSplitPattern, theStart)
-    end
-    return outResults
+
+    return output
 end
 -- Example of usage:
 --th> txt = 'Ég fór út að labba.<eos>Hvernig var veðrið?<eos>Hvar er mamma?<eos>Hún var skelfingu lostin!<eos>'
@@ -72,5 +97,9 @@ end
 -- Ég fór <unk> að labba.
 -- Ég fór út <unk> labba.
 -- Ég fór út að <unk>
-
-
+function string:test()
+    local txt = 'Ég fór út að labba.<eos>Hvernig var veðrið?<eos>Hvar er mamma?<eos>Hún var skelfingu lostin!<eos>'
+-- splittar í setningar
+    local sentences = txt:split('<eos>')
+    return sentences
+end
