@@ -40,65 +40,8 @@ print("Train set split into "..opt.batchsize.." sequences of length "..trainset:
 --end
 
 --[[ language model ]]--
-
-local lm = nn.Sequential()
-
-
--- rnn layers
-local stepmodule = nn.Sequential() -- applied at each time-step
-local inputsize = opt.hiddensize[1]
-for i,hiddensize in ipairs(opt.hiddensize) do 
-    local rnn
-
-    if opt.gru then -- Gated Recurrent Units
-        rnn = nn.GRU(inputsize, hiddensize, nil, opt.dropout/2)
-    elseif opt.lstm then -- Long Short Term Memory units
-        require 'nngraph'
-        nn.FastLSTM.usenngraph = true -- faster
-        rnn = nn.FastLSTM(inputsize, hiddensize)
-    	stepmodule:add(rnn)
-        stepmodule:add(nn.Dropout(opt.dropout))
-    elseif opt.blstm then 
-        rnn = nn.Sequencer(nn.FastLSTM(inputsize, hiddensize))--
-	   	lm:add(rnn)
-        lm:add(nn.Sequencer(nn.Dropout(opt.dropout)))
-	end 
-    inputsize = hiddensize
-end
-
-if opt.blstm then   
-	local bwd = lm:clone()
-    bwd:reset()
-    bwd:remember('neither')
-    local bwd_lstm = nn.BiSequencerLM(lm, bwd)
-
-    lm = nn.Sequential()
-    lm:add(bwd_lstm)
-    inputsize = inputsize*2
-end
-
-if opt.blstm then
-	lm:insert(nn.SplitTable(1),1) -- tensor to table of tensors TODO WHY???
-else
-	lm:insert(nn.SplitTable(1),1)
-end
-if opt.dropout > 0 and not opt.gru then  -- gru has a dropout option
-   lm:insert(nn.Dropout(opt.dropout),1)
-end
--- input layer (i.e. word embedding space)
-local lookup = nn.LookupTable(#trainset.icharvocab, opt.hiddensize[1])
-lookup.maxnormout = -1 -- prevent weird maxnormout behaviour
-lm:insert(lookup,1) -- input is seqlen x batchsize
-
--- output layer
-softmax = nn.Sequential()
-softmax:add(nn.Linear(inputsize, #trainset.icharvocab))
-softmax:add(nn.LogSoftMax())
--- encapsulate stepmodule into a Sequencer
-lm:add(nn.Sequencer(softmax))
-
--- remember previous state between batches
-lm:remember((opt.lstm or opt.gru) and 'both' or 'eval')
+local DNN = require 'DNN.lua'
+local lm = DNN.build(opt,#trainset.icharvocab)
 
 if not opt.silent then
     print"Language Model:"
