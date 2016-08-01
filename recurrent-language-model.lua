@@ -23,14 +23,14 @@ end
 
 --[[ data set ]]--
 
-bidirectional = true -- if false it is unidirectional
+bidirectional = false -- if false it is unidirectional
 -- This is where the magic happens:
 -- input: train_on_char (boolean), bidirectional (boolean), bat
 -- Returns the respective loaders 
-local trainset, validset, testset = txt_load.Althingi(bidirectional,{opt.batchsize,1,1})
-print("Char Vocabulary size : "..#trainset.icharvocab) 
-local char_vocabsize = #trainset.icharvocab
-print("Word Vocabulary size : "..#trainset.iwordvocab) 
+local trainset, validset, testset = txt_load.PTB(bidirectional,{opt.batchsize,1,1})
+print("Char Vocabulary size : "..#trainset.ivocab) 
+local char_vocabsize = #trainset.ivocab
+print("Word Vocabulary size : "..#trainset.ivocab) 
 print("Train set split into "..opt.batchsize.." sequences of length "..trainset:size())
 
 --local trainset, validset, testset = dl.loadPTB({opt.batchsize,1,1})
@@ -41,7 +41,7 @@ print("Train set split into "..opt.batchsize.." sequences of length "..trainset:
 
 --[[ language model ]]--
 local DNN = require 'DNN.lua'
-local lm = DNN.build(opt,#trainset.icharvocab)
+local lm = DNN.build(opt,#trainset.ivocab)
 
 if not opt.silent then
     print"Language Model:"
@@ -58,7 +58,7 @@ end
 
 local crit = nn.ClassNLLCriterion()
 
--- target is also seqlen x batchsize.
+-- target is also seqlen x batchsize.TODO: explain
 local targetmodule = nn.SplitTable(1)
 if opt.cuda then
     targetmodule = nn.Sequential()
@@ -84,7 +84,7 @@ opt.validsize = opt.validsize == -1 and validset:size() or opt.validsize
 -- is saved to file every time a new validation minima is found
 local xplog = {}
 xplog.opt = opt -- save all hyper-parameters and such
-xplog.dataset = 'Althingi'
+xplog.dataset = 'PTB'
 --xplog.vocab = trainset.vocab
 xplog.trainset = trainset
 xplog.validset = validset
