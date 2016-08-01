@@ -70,7 +70,7 @@ function train.run(xplog)
        for i, inputs, targets in trainset:subiter(opt.batchsize, opt.trainsize) do
            -- forward the target through criterion
            -- Double cast is needed because of convolution
-       
+-- TODO why need targetmodule 
            targets = targetmodule:forward(targets) -- intTensor with dimension 32 x 32 
            -- forward the model to obtain an output batch
            local outputs = model:forward(inputs)
@@ -84,7 +84,7 @@ function train.run(xplog)
            -- Given an input and a target, compute the gradients of the loss function associated to the criterion and return
            -- the result. input, target and gradInput are Tensors
            local gradOutputs = criterion:backward(outputs, targets)
-           model:zeroGradParameters()
+           model:zeroGradParameters() -- TODO why reset
            model:backward(inputs, gradOutputs)
 
            -- TODO We could maybe use cutoff here?
