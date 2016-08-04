@@ -3,19 +3,19 @@
 -- Based on examples for RNN package
 local train = {}
 
-function train.run(xplog)
+function train.load(xplog)
     -- The current epoch of this model
-    local epoch = xplog.epoch
+    epoch = xplog.epoch
     -- trainset object from dl package
-    local trainset = xplog.trainset
+    trainset = xplog.trainset
     -- same for validset
-    local validset = xplog.validset
+    validset = xplog.validset
     -- The module that gives us the target we are looking for
-    local targetmodule = xplog.targetmodule
+    targetmodule = xplog.targetmodule
     -- The criterion we minimize 
-    local criterion = xplog.criterion
+    criterion = xplog.criterion
     -- The model we are using
-    local model = xplog.model
+    model = xplog.model
     --[[ 
     The following are the hyperparameters, we keep them in a table called opt 
     
@@ -46,11 +46,92 @@ function train.run(xplog)
     savepath', './charResults/', 'path to directory where experiment log (includes model) will be saved')
     id', 'althingi_blstm', 'id string of this experiment (used to name output file) (defaults to a unique id)')
     ]]
-    local opt = xplog.opt
-    local ntrial = 0
+    opt = xplog.opt
+    ntrial = 0
     paths.mkdir(opt.savepath)
     opt.lr = opt.startlr
+end
 
+--[[ Forward coupling: Copy encoder cell and output to decoder LSTM ]]--
+function forwardConnect(enc, dec)
+   for i=1,#enc.lstmLayers do
+      if opt.useSeqLSTM then
+         dec.lstmLayers[i].userPrevOutput = enc.lstmLayers[i].output[opt.seqLen]
+         dec.lstmLayers[i].userPrevCell = enc.lstmLayers[i].cell[opt.seqLen]
+      else
+         dec.lstmLayers[i].userPrevOutput = nn.rnn.recursiveCopy(dec.lstmLayers[i].userPrevOutput, enc.lstmLayers[i].outputs[opt.seqLen])
+         dec.lstmLayers[i].userPrevCell = nn.rnn.recursiveCopy(dec.lstmLayers[i].userPrevCell, enc.lstmLayers[i].cells[opt.seqLen])
+      end
+   end
+end
+
+--[[ Backward coupling: Copy decoder gradients to encoder LSTM ]]--
+function backwardConnect(enc, dec)
+   for i=1,#enc.lstmLayers do
+      if opt.useSeqLSTM then
+         enc.lstmLayers[i].userNextGradCell = dec.lstmLayers[i].userGradPrevCell
+         enc.lstmLayers[i].gradPrevOutput = dec.lstmLayers[i].userGradPrevOutput
+      else
+         enc.lstmLayers[i].userNextGradCell = nn.rnn.recursiveCopy(enc.lstmLayers[i].userNextGradCell, dec.lstmLayers[i].userGradPrevCell)
+         enc.lstmLayers[i].gradPrevOutput = nn.rnn.recursiveCopy(enc.lstmLayers[i].gradPrevOutput, dec.lstmLayers[i].userGradPrevOutput)
+      end
+   end
+end
+function forward_pass(inputs, targets)
+           -- forward the target through criterion
+           -- Double cast is needed because of convolution
+-- TODO why need targetmodule 
+           targets = targetmodule:forward(targets) -- intTensor with dimension 32 x 32 
+           -- forward the model to obtain an output batch
+           return outputs = model:forward(inputs)
+end
+
+function backpropagate(outputs, targets)
+           local err = criterion:forward(outputs, targets)
+           sumErr = sumErr + err
+
+           -- backpropagate, here we correcting the weights to account for errors
+           -- Given an input and a target, compute the gradients of the loss function associated to the criterion and return
+           -- the result. input, target and gradInput are Tensors
+           local gradOutputs = criterion:backward(outputs, targets)
+           model:zeroGradParameters() -- TODO why reset
+           model:backward(inputs, gradOutputs)
+
+           -- TODO We could maybe use cutoff here?
+           model:updateGradParameters(opt.momentum) -- affects gradParams
+           model:updateParameters(opt.lr) -- affects params
+           model:maxParamNorm(opt.maxnormout) -- affects params
+end
+
+function autoencoder_forward_pass(input,embedding_target)
+   enc:zeroGradParameters()
+   dec:zeroGradParameters()
+
+   -- Forward pass
+   local encOut = enc:forward(input)
+   forwardConnect(enc, dec)
+   local decOut = dec:forward(embedding_target)
+
+end
+
+function autoencoder_backpropagate(embedding_input, targets)
+   --print(decOut)
+   local err = criterion:forward(decOut, decOutSeq)
+   
+   -- Backward pass
+   local gradOutput = criterion:backward(decOut, decOutSeq)
+   dec:backward(decInSeq, gradOutput)
+   backwardConnect(enc, dec)
+   local zeroTensor = torch.Tensor(encOut):zero()
+   enc:backward(encInSeq, zeroTensor)
+
+   dec:updateParameters(opt.learningRate)
+   enc:updateParameters(opt.learningRate)
+
+end
+
+function train.run(xplog)
+    train.load(xplog)
     -- Here we train and validate
     while opt.maxepoch <= 0 or epoch <= opt.maxepoch do
         print("")
@@ -68,29 +149,11 @@ function train.run(xplog)
        -- inputs : seqlen x batchsize [x inputsize] TODO I get batchsize x seqlen
        -- targets : seqlen x batchsize [x inputsize] 64 x 32 x 15 
        for i, inputs, targets in trainset:subiter(opt.batchsize, opt.trainsize) do
-           -- forward the target through criterion
-           -- Double cast is needed because of convolution
--- TODO why need targetmodule 
-           targets = targetmodule:forward(targets) -- intTensor with dimension 32 x 32 
-           -- forward the model to obtain an output batch
-           local outputs = model:forward(inputs)
+           forward_pass(inputs,targets)
            -- Given an input and a target, compute the loss function associated to the criterion and return the result. 
            -- In general input and target are Tensors, but some specific criterions might require some other type of object.
            -- This is a batch of training data, each row in the tensor representing the batch will be used for training
-           local err = criterion:forward(outputs, targets)
-           sumErr = sumErr + err
-
-           -- backpropagate, here we correcting the weights to account for errors
-           -- Given an input and a target, compute the gradients of the loss function associated to the criterion and return
-           -- the result. input, target and gradInput are Tensors
-           local gradOutputs = criterion:backward(outputs, targets)
-           model:zeroGradParameters() -- TODO why reset
-           model:backward(inputs, gradOutputs)
-
-           -- TODO We could maybe use cutoff here?
-           model:updateGradParameters(opt.momentum) -- affects gradParams
-           model:updateParameters(opt.lr) -- affects params
-           model:maxParamNorm(opt.maxnormout) -- affects params
+           backpropagate(outputs, targets)
 
            -- I always want to see the progress
            -- Later we should store info like this in a json file

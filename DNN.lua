@@ -2,7 +2,47 @@
 --
 local DNN = {}
 
-function DNN.build(opt,M)
+function build_autoencoder(opt,vocab_size)
+    opt.useSeqLSTM = false
+    -- Encoder
+    local enc = nn.Sequential()
+
+    enc:add(nn.LookupTableMaskZero(vocab_size, opt.hiddensize))
+    enc.lstmLayers = {}
+    local inputsize = opt.hiddensize[1]
+    for i,hiddensize in ipairs(opt.hiddensize) do
+       if opt.useSeqLSTM then
+          enc.lstmLayers[i] = nn.SeqLSTM(inputsize, hiddensize)
+          enc.lstmLayers[i]:maskZero()
+          enc:add(enc.lstmLayers[i])
+       else
+          enc.lstmLayers[i] = nn.LSTM(opt.hiddensize, opt.hiddensize):maskZero(1)
+          enc:add(nn.Sequencer(enc.lstmLayers[i]))
+       end
+    end
+    enc:add(nn.Select(1, -1))
+    
+    -- Decoder
+    local dec = nn.Sequential()
+    dec:add(nn.LookupTableMaskZero(opt.vocab_size, opt.hiddensize))
+    dec.lstmLayers = {}
+    for i,hiddensize in ipairs(opt.hiddensize) do
+       if opt.useSeqLSTM then
+          dec.lstmLayers[i] = nn.SeqLSTM(hiddensize, hiddensize)
+          dec.lstmLayers[i]:maskZero()
+          dec:add(dec.lstmLayers[i])
+           else
+          dec.lstmLayers[i] = nn.LSTM(hiddensize, hiddensize):maskZero(1)
+          dec:add(nn.Sequencer(dec.lstmLayers[i]))
+       end
+    end
+    dec:add(nn.Sequencer(nn.MaskZero(nn.Linear(hiddensize, vocab_size), 1)))
+    dec:add(nn.Sequencer(nn.MaskZero(nn.LogSoftMax(), 1)))
+    
+end
+
+
+function DNN.build(opt,vocab_size)
     local lm = nn.Sequential()
     -- rnn layers
     local stepmodule = nn.Sequential() -- applied at each time-step
@@ -43,13 +83,13 @@ function DNN.build(opt,M)
         lm:insert(nn.Dropout(opt.dropout),1)
     end
     -- input layer (i.e. word embedding space)
-    local lookup = nn.LookupTable(M, opt.hiddensize[1])
+    local lookup = nn.LookupTable(vocab_size, opt.hiddensize[1])
     lookup.maxnormout = -1 -- prevent weird maxnormout behaviour
     lm:insert(lookup,1) -- input is seqlen x batchsize
 
     -- output layer
     softmax = nn.Sequential()
-    softmax:add(nn.Linear(inputsize,M))
+    softmax:add(nn.Linear(inputsize,vocab_size))
     softmax:add(nn.LogSoftMax())
     -- encapsulate stepmodule into a Sequencer
     lm:add(nn.Sequencer(softmax))
