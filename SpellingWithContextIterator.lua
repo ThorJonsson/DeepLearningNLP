@@ -98,8 +98,131 @@ end
 -- Ég fór út <unk> labba.
 -- Ég fór út að <unk>
 function string:test()
-    local txt = 'Ég fór út að labba.<eos>Hvernig var veðrið?<eos>Hvar er mamma?<eos>Hún var skelfingu lostin!<eos>'
+    local txt = 'Éfór út að labba.<eos>Hvernig var veðrið?<eos>Hvar er mamma?<eos>Hún var skelfingu lostin!<eos>'
 -- splittar í setningar
     local sentences = txt:split('<eos>')
     return sentences
 end
+
+-- How to define a sequence_loader class
+
+local sequence_loader = torch.class('sequence_loader')
+
+function sequence_loader:__init(sequence, batchsize, bidirectional)
+   assert(torch.isTensor(sequence))
+   assert(torch.type(batchsize) == 'number')
+   -- sequence is a tensor where the first dimension indexes time
+   self.batchsize = batchsize
+   self.bidirectional = bidirectional 
+   local seqlen = sequence:size(1)
+   local size = sequence:size():totable()
+   table.remove(size, 1)
+   assert(#size == sequence:dim() - 1)
+   self.data = sequence.new()
+   -- note that some data will be lost
+   -- Number of batches
+   local seqlen2 = torch.floor(seqlen / batchsize)
+   -- seqlen2 x batchsize
+   self.data = sequence:sub(1,seqlen2*batchsize):view(batchsize, seqlen2):t():contiguous()
+end
+
+A = sequence_loader(torch.rand(5),5,false) -- works but is meaningless
+-- input 1 : sequence in tensor form
+-- input 2 : batchsize - i.e. the size of each batch
+-- input 3 : bidirectional - true or false
+-- To prepare input 1:
+
+function txt_load_util.get_raw_data(txt_set,datapath)
+    -- Dependencies
+    local file = require('pl.file')
+    local stringx = require('pl.stringx')
+    -- path to directory containing Althingi dataset on disk
+    -- This is the current default if no argument given
+    -- the dir contains train.txt, valid.txt and test.txt
+    datapath = datapath or '/home/thj92/DeepLearningNLP/Data/'
+    -- 2. load raw data,
+    local filename = 'althingi.'..txt_set..'.txt'
+    local filepath = paths.concat(datapath, filename)
+    local text = file.read(filepath)
+    text = stringx.replace(text, '\n', '<eos>')
+    return text
+end
+
+local text = txt_load_util.get_raw_data(txt_set, '/home/thj92/DeepLearningNLP/Data/')
+
+-- tokens contain all the characters from the whole sequence representing our document.
+-- We are going to build a table containing all the different unique tokens
+function txt_load_util.buildVocab(tokens)
+    local vocab = {}
+	local ivocab = {}
+	local counter = 1
+    -- Store each character as they appear in tokens
+    for i=1,#tokens do
+        local char = tokens[i]
+		if vocab[char] == nil then
+			ivocab[counter] = char
+			vocab[char] = counter
+			counter = counter + 1
+		end 
+	end
+	return vocab, ivocab
+end
+
+local charvocab, icharvocab = txt_load_util.buildVocab(tokens)
+
+function txt_load_util.text2tensor(tokens,vocab)
+    -- Build a tensor with a length which corresponds to size of vocabulary
+    -- Each element in the vocab will receive an entry in this one-dimensional tensor
+    local tensor = torch.IntTensor(#tokens):fill(0)
+    -- Each number receives word id which corresponds to its frequency
+    for i, char in ipairs(tokens) do
+        tensor[i] = vocab[char]
+    end
+    return tensor
+end
+
+local tensor = txt_load_util.text2tensor(tokens, charvocab)
+
+local loader = sequence_loader(tensor,batchsize,true)
+
+-- To disseminate tomorrow!
+
+-- subiter : for iterating over validation and test sets
+function DataLoader:subiter(batchsize, epochsize, ...)
+   batchsize = batchsize or 32
+   local dots = {...}
+   local size = self:size()
+   epochsize = epochsize or -1 
+   epochsize = epochsize > 0 and epochsize or self:size()
+   self._start = self._start or 1
+   local nsampled = 0
+   local stop
+   
+   local inputs, targets
+   
+   -- build iterator
+   return function()
+      if nsampled >= epochsize then
+         return
+      end
+      
+      local bs = math.min(nsampled+batchsize, epochsize) - nsampled
+      stop = math.min(self._start + bs - 1, size)
+      -- inputs and targets
+      local batch = {self:sub(self._start, stop, inputs, targets, unpack(dots))}
+      -- allows reuse of inputs and targets buffers for next iteration
+      inputs, targets = batch[1], batch[2]
+      
+      bs = stop - self._start + 1
+      nsampled = nsampled + bs
+      self._start = self._start + bs
+      if self._start > size then
+         self._start = 1
+      end
+      
+      self:collectgarbage()
+      
+      return nsampled, unpack(batch)
+   end
+end
+

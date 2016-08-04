@@ -4,3 +4,4 @@ rnn/
 Data/
 .*.sw*
 options.lua
+*.out

@@ -4,13 +4,14 @@ local dl = require 'dataload'
 local txt_load_util = {}
 -- text utility functions
 
-function txt_load_util.getAlthingi(txt_set)
+function txt_load_util.get_raw_data(txt_set,datapath)
     -- Dependencies
     local file = require('pl.file')
     local stringx = require('pl.stringx')
     -- path to directory containing Althingi dataset on disk
+    -- This is the current default if no argument given
     -- the dir contains train.txt, valid.txt and test.txt
-    datapath = '/home/thj92/DeepLearningNLP/Data/'
+    datapath = datapath or '/home/thj92/DeepLearningNLP/Data/'
     -- 2. load raw data,
     local filename = 'althingi.'..txt_set..'.txt'
     local filepath = paths.concat(datapath, filename)

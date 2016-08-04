@@ -21,7 +21,7 @@ function txt_load.Althingi(is_bidirectional,batchsize)
     local loaders = {}
     -- There are three different datafiles in dir
     for i,txt_set in ipairs{'train', 'valid', 'test'} do
-        local text = txt_load_util.getAlthingi(txt_set)
+        local text = txt_load_util.get_raw_data(txt_set, '/home/thj92/DeepLearningNLP/Data/')
         -- Build the list of unique characters in the text (charvocab)
         -- icharvocab is the inverted list
         local tokens = txt_load_util.tokenize(text)

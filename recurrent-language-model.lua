@@ -27,7 +27,7 @@ bidirectional = false -- if false it is unidirectional
 -- This is where the magic happens:
 -- input: train_on_char (boolean), bidirectional (boolean), bat
 -- Returns the respective loaders 
-local trainset, validset, testset = txt_load.PTB(bidirectional,{opt.batchsize,1,1})
+local trainset, validset, testset = txt_load.PTB(bidirectional,{opt.batchsize,1,1},opt.datapath)
 print("Char Vocabulary size : "..#trainset.ivocab) 
 local char_vocabsize = #trainset.ivocab
 print("Word Vocabulary size : "..#trainset.ivocab) 
