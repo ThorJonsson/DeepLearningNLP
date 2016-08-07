@@ -108,6 +108,7 @@ end
 
 local sequence_loader = torch.class('sequence_loader')
 
+-- This holds the data
 function sequence_loader:__init(sequence, batchsize, bidirectional)
    assert(torch.isTensor(sequence))
    assert(torch.type(batchsize) == 'number')
@@ -187,12 +188,33 @@ local loader = sequence_loader(tensor,batchsize,true)
 
 -- To disseminate tomorrow!
 
+-- inputs : seqlen x batchsize [x inputsize]
+-- targets : seqlen x batchsize [x inputsize]
+function SequenceLoader:sub(start, stop, inputs, targets)
+   local seqlen = stop - start + 1
+   
+   inputs = inputs or self.data.new()
+   targets = targets or inputs.new()
+   
+   if self.bidirectional then
+      assert(stop <= self.data:size(1))
+      inputs:set(self.data:sub(start, stop))
+      targets:set(inputs)
+   else
+      assert(stop < self.data:size(1))
+      inputs:set(self.data:sub(start, stop))
+      targets:set(self.data:sub(start+1, stop+1))
+   end
+   
+   return inputs, targets 
+end
+
 -- subiter : for iterating over validation and test sets
-function DataLoader:subiter(batchsize, epochsize, ...)
+-- We get a batchsize and epochsize
+function SequenceLoader:subiter(batchsize, ...)
    batchsize = batchsize or 32
    local dots = {...}
    local size = self:size()
-   epochsize = epochsize or -1 
    epochsize = epochsize > 0 and epochsize or self:size()
    self._start = self._start or 1
    local nsampled = 0
